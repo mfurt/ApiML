@@ -117,6 +117,11 @@ def learn_cat(dir_list, path, param_grid, str_list):
         return 'что-то пошло не так'
 
 
+def hm_date(new_date, df_hol):
+    weekday = int(df_hol[df_hol['calday'] == int(new_date.strftime("%Y%m%d"))]['weekday'])
+    holiday = int(df_hol[df_hol['calday'] == int(new_date.strftime("%Y%m%d"))]['holiday'])
+    return weekday, holiday
+
 def generate_data_pred(dir_list, path, max_date, df, df_hol):
     try:
         for i in dir_list:
@@ -127,13 +132,14 @@ def generate_data_pred(dir_list, path, max_date, df, df_hol):
                 pr_df = pd.read_csv(f'data/market_data/{i}/{j}',
                                     index_col=0).drop(['pr_sales_in_units', 'pr_sales_in_rub'], axis=1)
                 for _ in range(14):
+                    weekday, holiday = hm_date(new_date, df_hol)
                     new_date = new_date + datetime.timedelta(days=1)
                     pred_df = pr_df.loc[pr_df['pr_sku_id'].drop_duplicates().index]
                     pred_df['year'] = new_date.year
                     pred_df['day'] = new_date.day
-                    pred_df['weekday'] = int(df_hol[df_hol['calday'] == int(new_date.strftime("%Y%m%d"))]['weekday'])
+                    pred_df['weekday'] = [weekday for i in range(pred_df.__len__())]
                     pred_df['month'] = new_date.month
-                    pred_df['holiday'] = int(df_hol[df_hol['calday'] == int(new_date.strftime("%Y%m%d"))]['holiday'])
+                    pred_df['holiday'] = [holiday for i in range(pred_df.__len__())]
                     df_data_pred = pd.concat([df_data_pred, pred_df])
                     df_data_pred.reset_index(drop=True, inplace=True)
                 try:
