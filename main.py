@@ -11,7 +11,7 @@ app = FastAPI()
 @app.get("/")
 def learn():
     df_pr, df_sales_train, df_st, df_hol = read_files()
-    df = make_one(df_pr, df_sales_train, df_st, df_hol)
+    df, df_hol = make_one(df_pr, df_sales_train, df_st, df_hol)
     number_list, df = ez_drop(df)
     df, market_list, city_list = ez_game(df)
     generate_market_data(df, market_list)

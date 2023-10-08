@@ -40,7 +40,7 @@ def make_one(df_pr, df_sales_train, df_st, df_hol):
     df['date'] = pd.to_datetime(df['date'])
     df_hol['date'] = pd.to_datetime(df_hol['date'], format='%d.%m.%Y')
     df = df.merge(df_hol, left_on='date', right_on='date')
-    return df
+    return df, df_hol
 
 
 def ez_drop(df):
