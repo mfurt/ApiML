@@ -5,6 +5,7 @@ from catboost import CatBoostRegressor
 from sklearn.model_selection import TimeSeriesSplit, RandomizedSearchCV
 import datetime
 import pickle
+import shutil
 
 param_grid = {'n_estimators': range(100, 1000, 100),
               'max_depth': range(1, 11)}
@@ -113,88 +114,73 @@ def learn_cat(dir_list, path, param_grid, str_list):
                 pass
             with open(f'data/model/{i}/model_{j[11:-4]}.pkl','wb') as f:
                 pickle.dump(best_model_cbr,f)
+    return X.columns
 
 
-# def hm_date(new_date, df_hol):
-#     weekday = int(df_hol[df_hol['calday'] == int(new_date.strftime("%Y%m%d"))]['weekday'])
-#     holiday = int(df_hol[df_hol['calday'] == int(new_date.strftime("%Y%m%d"))]['holiday'])
-#     return weekday, holiday
-
-
-def generate_data_pred(dir_list, path, max_date, df, df_hol):
-    try:
-        for i in dir_list:
-            file_name = os.listdir(path + '/' + i)
-            for j in file_name:
-                new_date = max_date
-                df_data_pred = pd.DataFrame(columns=df.columns).drop(['pr_sales_in_units', 'pr_sales_in_rub'], axis=1)
-                pr_df = pd.read_csv(f'data/market_data/{i}/{j}',
-                                    index_col=0).drop(['pr_sales_in_units', 'pr_sales_in_rub'], axis=1)
-                for _ in range(14):
-                    # weekday, holiday = hm_date(new_date, df_hol)
-                    new_date = new_date + datetime.timedelta(days=1)
-                    pred_df = pr_df.loc[pr_df['pr_sku_id'].drop_duplicates().index]
-                    pred_df['year'] = new_date.year
-                    pred_df['day'] = new_date.day
-                    pred_df['weekday'] =int(df_hol[df_hol['calday'] == int(new_date.strftime("%Y%m%d"))]['weekday'])
-                    pred_df['month'] = new_date.month
-                    pred_df['holiday'] = int(df_hol[df_hol['calday'] == int(new_date.strftime("%Y%m%d"))]['holiday'])
-                    df_data_pred = pd.concat([df_data_pred, pred_df])
-                    df_data_pred.reset_index(drop=True, inplace=True)
-                try:
-                    os.makedirs(f"data/market_data_pred/{i}")
-                except FileExistsError:
-                    pass
-                df_data_pred.to_csv(f"data/market_data_pred/{i}/{j[:-4]}_pred.csv")
-    except:
-        return 'Не получилось'
+def generate_data_pred(dir_list, path, max_date, df, df_hol, feat_col):
+    for i in dir_list:
+        file_name = os.listdir(path + '/' + i)
+        for j in file_name:
+            new_date = max_date
+            df_data_pred = pd.DataFrame(columns=feat_col)
+            pr_df = pd.read_csv(f'data/market_data/{i}/{j}',
+                                index_col=0).drop(['pr_sales_in_units', 'pr_sales_in_rub'], axis=1)
+            for _ in range(14):
+                new_date = new_date + datetime.timedelta(days=1)
+                pred_df = pr_df.loc[pr_df['pr_sku_id'].drop_duplicates().index]
+                pred_df['year'] = new_date.year
+                pred_df['day'] = new_date.day
+                pred_df['weekday'] =int(df_hol[df_hol['calday'] == int(new_date.strftime("%Y%m%d"))]['weekday'])
+                pred_df['month'] = new_date.month
+                pred_df['holiday'] = int(df_hol[df_hol['calday'] == int(new_date.strftime("%Y%m%d"))]['holiday'])
+                df_data_pred = pd.concat([df_data_pred, pred_df])
+                df_data_pred.reset_index(drop=True, inplace=True)
+            try:
+                os.makedirs(f"data/market_data_pred/{i}")
+            except FileExistsError:
+                pass
+            df_data_pred.to_csv(f"data/market_data_pred/{i}/{j[:-4]}_pred.csv")
 
 
 def just_result(dir_list, path):
-    try:
-        for i in dir_list:
-            file_name = os.listdir(path + '_pred/' + i)
-            for j in file_name:
-                result = pd.DataFrame(columns=['st_id', 'pr_sku_id', 'date', 'target'])
-                pr_df = pd.read_csv(f'data/market_data_pred/{i}/{j}',
-                                    index_col=0)
-                with open(f'data/model/{i}/model__{j[12:-9]}.pkl', 'rb') as f:
-                    model = pickle.load(f)
+    for i in dir_list:
+        file_name = os.listdir(path + '_pred/' + i)
+        for j in file_name:
+            result = pd.DataFrame(columns=['st_id', 'pr_sku_id', 'date', 'target'])
+            pr_df = pd.read_csv(f'data/market_data_pred/{i}/{j}',
+                                index_col=0)
+            with open(f'data/model/{i}/model__{j[12:-9]}.pkl', 'rb') as f:
+                model = pickle.load(f)
 
-                    pred = model.predict(pr_df)
-                apply_all = np.vectorize(round)
-                pred = apply_all(pred)
+                pred = model.predict(pr_df)
+            apply_all = np.vectorize(round)
+            pred = apply_all(pred)
 
-                result['st_id'] = [i for _ in range(len(pr_df))]
-                result['pr_sku_id'] = pr_df['pr_sku_id']
-                result['date'] = pd.to_datetime(dict(year=pr_df.year, month=pr_df.month, day=pr_df.day))
-                result['target'] = pred
+            result['st_id'] = [i for _ in range(len(pr_df))]
+            result['pr_sku_id'] = pr_df['pr_sku_id']
+            result['date'] = pd.to_datetime(dict(year=pr_df.year, month=pr_df.month, day=pr_df.day))
+            result['target'] = pred
 
-                try:
-                    os.makedirs(f"data/result/{i}")
-                except FileExistsError:
-                    pass
-                result.to_csv(f"data/result/{i}/{j[12:-9]}.csv")
-    except:
-        return 'Не получилось'
+            try:
+                os.makedirs(f"data/result/{i}")
+            except FileExistsError:
+                pass
+            result.to_csv(f"data/result/{i}/{j[12:-9]}.csv")
 
 
 def save_result(dir_list):
-    try:
-        sales = pd.DataFrame(columns=['st_id', 'pr_sku_id', 'date', 'target'])
+    sales = pd.DataFrame(columns=['st_id', 'pr_sku_id', 'date', 'target'])
 
-        for i in dir_list:
-            file_name = os.listdir('data/result/' + i)
-            for j in file_name:
-                pr_df = pd.read_csv(f'data/result/{i}/{j}',
-                                    index_col=0)
-                sales = pd.concat([sales, pr_df])
-        sales.to_csv('data/sales_submission.csv')
-    except:
-        return 'Не повезло'
+    for i in dir_list:
+        file_name = os.listdir('data/result/' + i)
+        for j in file_name:
+            pr_df = pd.read_csv(f'data/result/{i}/{j}',
+                                index_col=0)
+            sales = pd.concat([sales, pr_df])
+    sales.to_csv('data/sales_submission.csv')
     
 def drop_cash():
-    os.remove("/data/model")
-    os.remove("/data/market_data_pred")
-    os.remove("/data/market_data")
-    os.remove("/data/result")
+    shutil.rmtree("data/market_data_pred")
+    shutil.rmtree("data/market_data")
+    shutil.rmtree("data/result")
+    shutil.rmtree("data/model")

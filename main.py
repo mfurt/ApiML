@@ -15,9 +15,10 @@ async def learn():
     df, market_list, city_list = ez_game(df)
     new_df = generate_market_data(df, market_list)
     path, dir_list, max_date, str_list = mini_const(new_df, df_sales_train)
-    learn_cat(dir_list, path, param_grid, str_list)
-    generate_data_pred(dir_list, path, max_date, df, df_hol)
+    feat_col = learn_cat(dir_list, path, param_grid, str_list)
+    generate_data_pred(dir_list, path, max_date, df, df_hol, feat_col)
     just_result(dir_list, path)
+    save_result(dir_list)
     drop_cash()
     return "Успех"
 
