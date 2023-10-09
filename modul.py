@@ -73,54 +73,53 @@ def generate_market_data(df, market_list):
                 pass
             new_df = new_df.drop(['st_id', 'st_city_id'], axis=1)
             new_df.to_csv(f"data/market_data/{path}/market_data_{market}.csv")
+    
     except:
         return 'Есть проблема'
-    return 'Файлы созданы'
+    return new_df
 
 
-def mini_const(df, df_sales_train):
+def mini_const(new_df, df_sales_train):
     path = 'data/market_data'
     dir_list = os.listdir(path)
     max_date = df_sales_train['date'].astype('datetime64[ns]').max()
-    str_list = [_ for _ in df.columns if df[_].dtype == 'object']
+    str_list = [_ for _ in new_df.columns if new_df[_].dtype == 'object']
 
     return path, dir_list, max_date, str_list
 
 
 def learn_cat(dir_list, path, param_grid, str_list):
-    try:
-        for i in dir_list:
-            file_name = os.listdir(path + '/' + i)
-            for j in file_name:
-                df = pd.read_csv(f'data/market_data/{i}/{j}', index_col=0)
-                y = df['pr_sales_in_units']
-                X = df.drop(['pr_sales_in_units', 'pr_sales_in_rub'], axis=1)
-                tsscv = TimeSeriesSplit()
-                estimator = CatBoostRegressor(random_state=0, verbose=False)
-                model_cbr = RandomizedSearchCV(estimator,
-                                               param_grid,
-                                               verbose=False,
-                                               n_jobs=-1,
-                                               cv=tsscv,
-                                               scoring='neg_mean_squared_error',
-                                               random_state=0)
-                model_cbr.fit(X, y, cat_features=str_list)
-                parametrs_cbr = model_cbr.best_params_
-                best_model_cbr = model_cbr.best_estimator_
-                try:
-                    os.makedirs(f"data/model/{i}")
-                except FileExistsError:
-                    pass
-                with open(f'data/model/{i}/model_{j[11:-4]}.pkl', 'wb') as f:
-                    pickle.dump(best_model_cbr, f)
-    except:
-        return 'что-то пошло не так'
+    for i in dir_list:
+        file_name = os.listdir(path+'/'+i)
+        for j in file_name:
+            df = pd.read_csv(f'data/market_data/{i}/{j}', index_col=0)
+            y = df['pr_sales_in_units']
+            X = df.drop(['pr_sales_in_units', 'pr_sales_in_rub'], axis=1)
+            tsscv = TimeSeriesSplit()
+            estimator = CatBoostRegressor(random_state=0, verbose = False)
+            model_cbr = RandomizedSearchCV(estimator, 
+                                      param_grid,
+                                      verbose = False,
+                                      n_jobs=-1, 
+                                      cv=tsscv,
+                                      scoring='neg_mean_squared_error',
+                                      random_state=0)
+            model_cbr.fit(X, y, cat_features=str_list)
+            parametrs_cbr = model_cbr.best_params_
+            best_model_cbr = model_cbr.best_estimator_
+            try:
+                os.makedirs(f"data/model/{i}")
+            except FileExistsError:
+                pass
+            with open(f'data/model/{i}/model_{j[11:-4]}.pkl','wb') as f:
+                pickle.dump(best_model_cbr,f)
 
 
-def hm_date(new_date, df_hol):
-    weekday = int(df_hol[df_hol['calday'] == int(new_date.strftime("%Y%m%d"))]['weekday'])
-    holiday = int(df_hol[df_hol['calday'] == int(new_date.strftime("%Y%m%d"))]['holiday'])
-    return weekday, holiday
+# def hm_date(new_date, df_hol):
+#     weekday = int(df_hol[df_hol['calday'] == int(new_date.strftime("%Y%m%d"))]['weekday'])
+#     holiday = int(df_hol[df_hol['calday'] == int(new_date.strftime("%Y%m%d"))]['holiday'])
+#     return weekday, holiday
+
 
 def generate_data_pred(dir_list, path, max_date, df, df_hol):
     try:
@@ -132,14 +131,14 @@ def generate_data_pred(dir_list, path, max_date, df, df_hol):
                 pr_df = pd.read_csv(f'data/market_data/{i}/{j}',
                                     index_col=0).drop(['pr_sales_in_units', 'pr_sales_in_rub'], axis=1)
                 for _ in range(14):
-                    weekday, holiday = hm_date(new_date, df_hol)
+                    # weekday, holiday = hm_date(new_date, df_hol)
                     new_date = new_date + datetime.timedelta(days=1)
                     pred_df = pr_df.loc[pr_df['pr_sku_id'].drop_duplicates().index]
                     pred_df['year'] = new_date.year
                     pred_df['day'] = new_date.day
-                    pred_df['weekday'] = [weekday for i in range(pred_df.__len__())]
+                    pred_df['weekday'] =int(df_hol[df_hol['calday'] == int(new_date.strftime("%Y%m%d"))]['weekday'])
                     pred_df['month'] = new_date.month
-                    pred_df['holiday'] = [holiday for i in range(pred_df.__len__())]
+                    pred_df['holiday'] = int(df_hol[df_hol['calday'] == int(new_date.strftime("%Y%m%d"))]['holiday'])
                     df_data_pred = pd.concat([df_data_pred, pred_df])
                     df_data_pred.reset_index(drop=True, inplace=True)
                 try:
@@ -193,3 +192,9 @@ def save_result(dir_list):
         sales.to_csv('data/sales_submission.csv')
     except:
         return 'Не повезло'
+    
+def drop_cash():
+    os.remove("/data/model")
+    os.remove("/data/market_data_pred")
+    os.remove("/data/market_data")
+    os.remove("/data/result")
