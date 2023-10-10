@@ -10,11 +10,11 @@ import shutil
 param_grid = {'n_estimators': range(100, 1000, 100),
               'max_depth': range(1, 11)}
 
-
+# метрика
 def wape(y_true: np.array, y_pred: np.array):
     return np.sum(np.abs(y_true - y_pred)) / np.sum(np.abs(y_true))
 
-
+# доступ до бд или использование локальных файлов
 def read_files():
     try:
         df_pr = pd.read_json(execute())
@@ -34,7 +34,7 @@ def read_files():
         df_hol = pd.read_csv('data/holidays_covid_calendar.csv')
     return df_pr, df_sales_train, df_st, df_hol
 
-
+# сбор данных из различных моделей бд
 def make_one(df_pr, df_sales_train, df_st, df_hol):
     df = df_sales_train.merge(df_pr, left_on='pr_sku_id', right_on='pr_sku_id')
     df = df.merge(df_st, left_on='st_id', right_on='st_id')
@@ -43,14 +43,14 @@ def make_one(df_pr, df_sales_train, df_st, df_hol):
     df = df.merge(df_hol, left_on='date', right_on='date')
     return df, df_hol
 
-
+# удаление нежелательных файлов
 def ez_drop(df):
     number_list = [_ for _ in df.columns if (df[_].dtype == 'int64' or df[_].dtype == 'float64')]
     df = df[df['pr_sales_in_units'] > 0]
     df = df.drop(df[(df['pr_sales_in_rub'] == 0) & (df['pr_sales_in_units'] != 0)].index, axis=0)
     return number_list, df
 
-
+# удаление ненужных данных
 def ez_game(df):
     df = df.sort_values('date')
     df['month'] = df['date'].apply(lambda x: x.month)
@@ -60,7 +60,7 @@ def ez_game(df):
     city_list = df['st_city_id'].unique()
     return df, market_list, city_list
 
-
+# генерация данных для обучения по магазинам
 def generate_market_data(df, market_list):
     try:
         for _ in market_list:
@@ -79,7 +79,7 @@ def generate_market_data(df, market_list):
         return 'Есть проблема'
     return new_df
 
-
+# некоторые константы
 def mini_const(new_df, df_sales_train):
     path = 'data/market_data'
     dir_list = os.listdir(path)
@@ -88,7 +88,7 @@ def mini_const(new_df, df_sales_train):
 
     return path, dir_list, max_date, str_list
 
-
+# обучение моделей, с последющем сохранинем моделей для дальнейшего использования
 def learn_cat(dir_list, path, param_grid, str_list):
     for i in dir_list:
         file_name = os.listdir(path+'/'+i)
@@ -116,7 +116,7 @@ def learn_cat(dir_list, path, param_grid, str_list):
                 pickle.dump(best_model_cbr,f)
     return X.columns
 
-
+# генерация данных для предсказаний на 14 дней, с сохранением файлов
 def generate_data_pred(dir_list, path, max_date, df, df_hol, feat_col):
     for i in dir_list:
         file_name = os.listdir(path + '/' + i)
@@ -141,7 +141,7 @@ def generate_data_pred(dir_list, path, max_date, df, df_hol, feat_col):
                 pass
             df_data_pred.to_csv(f"data/market_data_pred/{i}/{j[:-4]}_pred.csv")
 
-
+# получение предсказаний
 def just_result(dir_list, path):
     for i in dir_list:
         file_name = os.listdir(path + '_pred/' + i)
@@ -167,7 +167,7 @@ def just_result(dir_list, path):
                 pass
             result.to_csv(f"data/result/{i}/{j[12:-9]}.csv")
 
-
+# сохранение результатов в требуемый формат
 def save_result(dir_list):
     sales = pd.DataFrame(columns=['st_id', 'pr_sku_id', 'date', 'target'])
 
@@ -178,7 +178,8 @@ def save_result(dir_list):
                                 index_col=0)
             sales = pd.concat([sales, pr_df])
     sales.to_csv('data/sales_submission.csv')
-    
+
+# удаление файлов
 def drop_cash():
     shutil.rmtree("data/market_data_pred")
     shutil.rmtree("data/market_data")
